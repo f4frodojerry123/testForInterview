@@ -1,11 +1,27 @@
 <template>
   <q-page class="row q-pt-xl">
     <div class="full-width q-px-xl">
-      <div class="q-mb-xl">
-        <q-input v-model="tempData.name" label="姓名" />
-        <q-input v-model="tempData.age" label="年齡" />
-        <q-btn color="primary" class="q-mt-md">新增</q-btn>
-      </div>
+      <q-form
+        class="q-mb-xl"
+      >
+        <q-input 
+          v-model="tempData.name" label="姓名"
+          lazy-rules
+          :rules="[ val => val && val.length > 0 || '請輸入姓名']"
+        />
+        <q-input 
+          v-model="tempData.age"
+          label="年齡"
+          type="number"
+          lazy-rules
+          :rules="[ val => val && val.length > 0 || '請輸入年齡']"
+        />
+        <q-btn v-if="actionType === 'add'" @click="update()" color="primary" class="q-mt-md" type="submit">新增</q-btn>
+        <div v-else class="edit-btn">
+          <q-btn @click="edit()" color="primary" class="q-mt-md" type="submit">更新</q-btn>
+          <q-btn @click="changeActionType('add')" color="secondary" class="q-mt-md" type="reset">取消</q-btn>
+        </div>
+      </q-form>
 
       <q-table
         flat
@@ -79,19 +95,23 @@
 
 <script setup lang="ts">
 import axios from 'axios';
-import { QTableProps } from 'quasar';
-import { ref } from 'vue';
+import { QTableProps, Dialog } from 'quasar';
+import { onBeforeMount, ref } from 'vue';
+import { useQuasar } from 'quasar'
+
+const $q = useQuasar()
 interface btnType {
   label: string;
   icon: string;
   status: string;
 }
-const blockData = ref([
-  {
-    name: 'test',
-    age: 25,
-  },
-]);
+
+interface parmasType {
+  id: string;
+  name: string;
+  age: number;
+}
+const blockData = ref([]);
 const tableConfig = ref([
   {
     label: '姓名',
@@ -104,6 +124,7 @@ const tableConfig = ref([
     name: 'age',
     field: 'age',
     align: 'left',
+    sortable: true,
   },
 ]);
 const tableButtons = ref([
@@ -119,13 +140,96 @@ const tableButtons = ref([
   },
 ]);
 
+const actionType = ref('add');
+const editDataId = ref('')
+
 const tempData = ref({
   name: '',
   age: '',
 });
-function handleClickOption(btn, data) {
-  // ...
+
+const getData = async() => {
+  axios.get('https://dahua.metcfire.com.tw/api/CRUDTest/a').then((response) => {
+    if(response.status === 200) {
+      blockData.value = response.data;
+    }
+  })
 }
+
+const update = async() => {
+  if(tempData.value.name && tempData.value.age) {
+    const params = {
+      name: tempData.value.name,
+      age: +tempData.value.age,
+    }
+    axios.post('https://dahua.metcfire.com.tw/api/CRUDTest', params).then((response) => {
+      if(response.status === 200) {
+       getData();
+      }
+    })
+  }
+}
+
+const deleteData = (params: parmasType) => {
+  axios.delete(`https://dahua.metcfire.com.tw/api/CRUDTest/${params.id}`).then((response) => {
+    if(response.status === 200) {
+      getData();
+    }
+  })
+}
+
+const edit = () => {
+  // $q.dialog({
+  //       title: 'Alert',
+  //       message: '確定要更新嗎?'
+  //     }).onOk(() => {
+  //       
+  //     }).onCancel(() => {
+  //       
+  //     }).onDismiss(() => {
+  //       
+  //     })
+  if(tempData.value.name && tempData.value.age) {
+  const params = { 
+    id: editDataId.value,
+    name: tempData.value.name,
+    age: +tempData.value.age,
+  }
+  axios.patch('https://dahua.metcfire.com.tw/api/CRUDTest', params).then((response) => {
+    if(response.status === 200) {
+      getData();
+    }
+  })
+  }
+
+}
+
+const changeActionType = (type: string, params?: parmasType) => {
+  actionType.value = type;
+  if (type === 'edit') {
+    editDataId.value = params?.id || '';
+    Object.assign(tempData.value, params)
+  } else {
+    tempData.value.name = '';
+    tempData.value.age = '';
+  }
+}
+
+const handleClickOption = (btn: any, data: parmasType) => {
+  switch (btn.status) {
+    case 'edit':
+      changeActionType('edit', data);
+      break;
+    case 'delete':
+      deleteData(data);
+    default:
+      break;
+  }
+}
+
+onBeforeMount(async() => {
+  await getData();
+})
 </script>
 
 <style lang="scss" scoped>
@@ -136,5 +240,12 @@ function handleClickOption(btn, data) {
 
 .q-table tbody td {
   font-size: 18px;
+}
+
+.edit-btn {
+  display: flex;
+  .q-mt-md {
+    margin-right: 10px;
+  }
 }
 </style>
